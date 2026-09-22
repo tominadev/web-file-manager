@@ -41,7 +41,7 @@ journalctl -u web-file-manager -f
 systemctl restart web-file-manager
 ```
 
-The default listener is `127.0.0.1:8080`. Put it behind an HTTPS reverse proxy before exposing it publicly.
+The default listener is `:8080`, so it accepts connections on all network interfaces. Put it behind an HTTPS reverse proxy and firewall before exposing it publicly.
 
 Configuration:
 

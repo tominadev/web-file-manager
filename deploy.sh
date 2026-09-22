@@ -78,7 +78,7 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   umask 077
   master_key="$(openssl rand -base64 32)"
   {
-    printf 'WFM_ADDR=127.0.0.1:8080\n'
+    printf 'WFM_ADDR=:8080\n'
     printf 'WFM_DATA_DIR=%s\n' "${DATA_DIR}"
     printf 'WFM_MASTER_KEY=%s\n' "${master_key}"
   } > "${ENV_FILE}"
