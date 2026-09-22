@@ -23,6 +23,26 @@ go run .
 
 Open <http://127.0.0.1:8080>.
 
+## One-click Debian deployment
+
+On a fresh Debian server with systemd:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tominadev/web-file-manager/main/deploy.sh | sudo bash
+```
+
+The script installs Git, Go, build tools, and systemd service configuration. It builds the application from the `main` branch, creates the `wfm` service account, generates a persistent master key under `/etc/web-file-manager/`, and starts `web-file-manager.service`.
+
+Useful commands:
+
+```bash
+systemctl status web-file-manager
+journalctl -u web-file-manager -f
+systemctl restart web-file-manager
+```
+
+The default listener is `127.0.0.1:8080`. Put it behind an HTTPS reverse proxy before exposing it publicly.
+
 Configuration:
 
 ```bash
