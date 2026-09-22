@@ -44,9 +44,14 @@ if [[ "${1:-}" == "configure" || "${1:-}" == "config" ]]; then
   chmod 0600 "${tmp_env}"
   chown root:root "${tmp_env}"
   mv "${tmp_env}" "${ENV_FILE}"
+  apt-get update
+  apt-get install -y --no-install-recommends libcap2-bin
+  [[ -x "${INSTALL_DIR}/${APP_NAME}" ]] || die "Application binary not found: ${INSTALL_DIR}/${APP_NAME}"
+  setcap 'cap_net_bind_service=+ep' "${INSTALL_DIR}/${APP_NAME}"
   install -d -m 0755 "/etc/systemd/system/${APP_NAME}.service.d"
   cat > "/etc/systemd/system/${APP_NAME}.service.d/privileged-port.conf" <<'EOF'
 [Service]
+NoNewPrivileges=false
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 EOF
@@ -69,7 +74,7 @@ command -v systemctl >/dev/null 2>&1 || die "systemd is required"
 export DEBIAN_FRONTEND=noninteractive
 log "Installing system packages"
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl git build-essential openssl systemd
+apt-get install -y --no-install-recommends ca-certificates curl git build-essential openssl systemd libcap2-bin
 
 case "${GO_ARCH}" in
   amd64) GO_TARBALL_ARCH="amd64"; GO_SHA256="63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445" ;;
@@ -116,6 +121,7 @@ go build -trimpath -ldflags='-s -w' -o "${INSTALL_DIR}/${APP_NAME}" .
 popd >/dev/null
 chown root:root "${INSTALL_DIR}/${APP_NAME}"
 chmod 0755 "${INSTALL_DIR}/${APP_NAME}"
+setcap 'cap_net_bind_service=+ep' "${INSTALL_DIR}/${APP_NAME}"
 
 log "Preparing encrypted data storage"
 install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0700 "${DATA_DIR}"
@@ -151,7 +157,6 @@ EnvironmentFile=${ENV_FILE}
 ExecStart=${INSTALL_DIR}/${APP_NAME}
 Restart=on-failure
 RestartSec=5s
-NoNewPrivileges=true
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 PrivateTmp=true
