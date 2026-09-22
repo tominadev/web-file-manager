@@ -10,6 +10,8 @@ DATA_DIR="${DATA_DIR:-/var/lib/${APP_NAME}/data}"
 ENV_DIR="${ENV_DIR:-/etc/${APP_NAME}}"
 SERVICE_USER="${SERVICE_USER:-wfm}"
 SERVICE_FILE="/etc/systemd/system/${APP_NAME}.service"
+GO_VERSION="${GO_VERSION:-1.27.1}"
+GO_ARCH="$(dpkg --print-architecture)"
 
 log() { printf '[%s] %s\n' "${APP_NAME}" "$*"; }
 die() { printf '[%s] ERROR: %s\n' "${APP_NAME}" "$*" >&2; exit 1; }
@@ -20,7 +22,29 @@ command -v systemctl >/dev/null 2>&1 || die "systemd is required"
 export DEBIAN_FRONTEND=noninteractive
 log "Installing system packages"
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl git golang-go build-essential openssl systemd
+apt-get install -y --no-install-recommends ca-certificates curl git build-essential openssl systemd
+
+case "${GO_ARCH}" in
+  amd64) GO_TARBALL_ARCH="amd64"; GO_SHA256="63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445" ;;
+  arm64) GO_TARBALL_ARCH="arm64"; GO_SHA256="3450b45a3f9ee8568792736a5c5e70a1f2e9b36c35a8f74958c03e51d7d92bec" ;;
+  *) die "Unsupported Debian architecture: ${GO_ARCH}" ;;
+esac
+
+if [[ ! -x /usr/local/go/bin/go ]] || [[ "$(/usr/local/go/bin/go version 2>/dev/null || true)" != "go version go${GO_VERSION} linux/${GO_TARBALL_ARCH}" ]]; then
+  log "Installing official Go ${GO_VERSION} for ${GO_TARBALL_ARCH}"
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "${tmp_dir}"' EXIT
+  go_archive="go${GO_VERSION}.linux-${GO_TARBALL_ARCH}.tar.gz"
+  curl -fsSL --retry 3 -o "${tmp_dir}/${go_archive}" "https://go.dev/dl/${go_archive}"
+  printf '%s  %s\n' "${GO_SHA256}" "${tmp_dir}/${go_archive}" | sha256sum -c -
+  if [[ -e /usr/local/go ]]; then
+    mv /usr/local/go "/usr/local/go.previous.$(date +%Y%m%d%H%M%S)"
+  fi
+  tar -C /usr/local -xzf "${tmp_dir}/${go_archive}"
+fi
+export PATH="/usr/local/go/bin:${PATH}"
+export GOTOOLCHAIN=local
+go version
 
 if ! id -u "${SERVICE_USER}" >/dev/null 2>&1; then
   log "Creating service user ${SERVICE_USER}"
