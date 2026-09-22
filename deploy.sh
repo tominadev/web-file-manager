@@ -44,6 +44,13 @@ if [[ "${1:-}" == "configure" || "${1:-}" == "config" ]]; then
   chmod 0600 "${tmp_env}"
   chown root:root "${tmp_env}"
   mv "${tmp_env}" "${ENV_FILE}"
+  install -d -m 0755 "/etc/systemd/system/${APP_NAME}.service.d"
+  cat > "/etc/systemd/system/${APP_NAME}.service.d/privileged-port.conf" <<'EOF'
+[Service]
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+EOF
+  chmod 0644 "/etc/systemd/system/${APP_NAME}.service.d/privileged-port.conf"
   systemctl daemon-reload
   systemctl restart "${APP_NAME}.service"
   if ! systemctl is-active --quiet "${APP_NAME}.service"; then
