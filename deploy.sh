@@ -20,7 +20,7 @@ command -v systemctl >/dev/null 2>&1 || die "systemd is required"
 export DEBIAN_FRONTEND=noninteractive
 log "Installing system packages"
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl git golang-go build-essential openssl
+apt-get install -y --no-install-recommends ca-certificates curl git golang-go build-essential openssl systemd
 
 if ! id -u "${SERVICE_USER}" >/dev/null 2>&1; then
   log "Creating service user ${SERVICE_USER}"
