@@ -18,6 +18,7 @@ var modernPageWithProgress = template.Must(template.New("modern-progress").Parse
     event.preventDefault();
     if (!input.files.length) return;
     const xhr = new XMLHttpRequest();
+    const formData = new FormData(form);
     button.disabled = true;
     input.disabled = true;
     progress.hidden = false;
@@ -35,11 +36,11 @@ var modernPageWithProgress = template.Must(template.New("modern-progress").Parse
         bar.style.width = '100%'; percent.textContent = '100%'; status.textContent = 'Upload complete';
         window.setTimeout(() => window.location.reload(), 500);
       } else {
-        status.textContent = 'Upload failed (' + xhr.status + ')'; button.disabled = false; input.disabled = false;
+        status.textContent = xhr.responseText.trim() || ('Upload failed (' + xhr.status + ')'); button.disabled = false; input.disabled = false;
       }
     });
     xhr.addEventListener('error', () => { status.textContent = 'Network error during upload'; button.disabled = false; input.disabled = false; });
-    xhr.send(new FormData(form));
+    xhr.send(formData);
   });
   document.querySelectorAll('.download-link').forEach((link) => {
     link.addEventListener('click', async (event) => {
