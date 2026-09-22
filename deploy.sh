@@ -16,6 +16,46 @@ GO_ARCH="$(dpkg --print-architecture)"
 log() { printf '[%s] %s\n' "${APP_NAME}" "$*"; }
 die() { printf '[%s] ERROR: %s\n' "${APP_NAME}" "$*" >&2; exit 1; }
 
+if [[ "${1:-}" == "configure" || "${1:-}" == "config" ]]; then
+  [[ "${EUID}" -eq 0 ]] || die "Run this command as root"
+  shift
+  listen_addr=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --addr)
+        [[ $# -ge 2 ]] || die "--addr requires a value, for example :8080"
+        listen_addr="$2"
+        shift 2
+        ;;
+      *) die "Unknown configure option: $1" ;;
+    esac
+  done
+  [[ -n "${listen_addr}" ]] || die "Usage: deploy.sh configure --addr :8080"
+  [[ "${listen_addr}" != *$'\n'* && "${listen_addr}" != *$'\r'* && "${listen_addr}" != *' '* ]] || die "Invalid listen address"
+  ENV_FILE="${ENV_DIR}/${APP_NAME}.env"
+  [[ -f "${ENV_FILE}" ]] || die "Configuration file not found: ${ENV_FILE}"
+  tmp_env="$(mktemp)"
+  awk -v address="${listen_addr}" '
+    BEGIN { updated = 0 }
+    /^WFM_ADDR=/ { print "WFM_ADDR=" address; updated = 1; next }
+    { print }
+    END { if (!updated) print "WFM_ADDR=" address }
+  ' "${ENV_FILE}" > "${tmp_env}"
+  chmod 0600 "${tmp_env}"
+  chown root:root "${tmp_env}"
+  mv "${tmp_env}" "${ENV_FILE}"
+  systemctl daemon-reload
+  systemctl restart "${APP_NAME}.service"
+  if ! systemctl is-active --quiet "${APP_NAME}.service"; then
+    systemctl --no-pager --full status "${APP_NAME}.service" || true
+    journalctl -u "${APP_NAME}.service" -n 50 --no-pager || true
+    exit 1
+  fi
+  log "Listening address updated to ${listen_addr}"
+  systemctl --no-pager --full status "${APP_NAME}.service"
+  exit 0
+fi
+
 [[ "${EUID}" -eq 0 ]] || die "Run this script as root: sudo bash deploy.sh"
 command -v systemctl >/dev/null 2>&1 || die "systemd is required"
 

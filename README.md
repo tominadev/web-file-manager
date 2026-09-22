@@ -41,6 +41,15 @@ journalctl -u web-file-manager -f
 systemctl restart web-file-manager
 ```
 
+To change the listen address without editing the environment file manually:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tominadev/web-file-manager/main/deploy.sh -o /tmp/web-file-manager-deploy.sh
+sudo bash /tmp/web-file-manager-deploy.sh configure --addr :8080
+```
+
+For local-only access, use `--addr 127.0.0.1:8080`. The configure command restarts the service and prints its status and recent logs if startup fails.
+
 The default listener is `:8080`, so it accepts connections on all network interfaces. Put it behind an HTTPS reverse proxy and firewall before exposing it publicly.
 
 Configuration:
