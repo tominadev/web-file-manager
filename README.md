@@ -50,7 +50,7 @@ sudo bash /tmp/web-file-manager-deploy.sh configure --addr :8080
 
 For local-only access, use `--addr 127.0.0.1:8080`. The configure command restarts the service and prints its status and recent logs if startup fails.
 
-The default listener is `:8080`, so it accepts connections on all network interfaces. Put it behind an HTTPS reverse proxy and firewall before exposing it publicly.
+The default listener is `:8080`, so it accepts connections on all network interfaces. To use port 80, run the deployment script again so systemd grants only `CAP_NET_BIND_SERVICE` to the service, then use `deploy.sh configure --addr :80`. Put it behind an HTTPS reverse proxy and firewall before exposing it publicly.
 
 Configuration:
 
