@@ -99,6 +99,7 @@ func main() {
 	mux.HandleFunc("/download", a.download)
 	mux.HandleFunc("/delete", a.delete)
 	mux.HandleFunc("/admin", a.admin)
+	mux.HandleFunc("/admin/reset-password", a.adminResetPassword)
 	server := &http.Server{Addr: env("WFM_ADDR", ":8080"), Handler: securityHeaders(mux), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute}
 	log.Printf("web file manager listening on %s", server.Addr)
 	log.Fatal(server.ListenAndServe())
@@ -173,7 +174,7 @@ func (a *app) saveLocked() error {
 }
 func (a *app) render(w http.ResponseWriter, data map[string]any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := modernPage.Execute(w, data); err != nil {
+	if err := modernPageWithProgress.Execute(w, data); err != nil {
 		http.Error(w, "template error", 500)
 	}
 }
@@ -259,7 +260,10 @@ func (a *app) changePassword(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) renderPassword(w http.ResponseWriter, user, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := passwordPage.Execute(w, map[string]any{"User": user, "Error": message}); err != nil {
+	a.mu.RLock()
+	isAdmin := a.data.Users[user].IsAdmin
+	a.mu.RUnlock()
+	if err := modernPasswordPage.Execute(w, map[string]any{"User": user, "IsAdmin": isAdmin, "Error": message}); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
 }
@@ -285,9 +289,52 @@ func (a *app) admin(w http.ResponseWriter, r *http.Request) {
 	a.mu.RUnlock()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := map[string]any{"UserCount": len(users), "AdminCount": adminCount, "Users": users}
-	if err := modernAdminPage.Execute(w, data); err != nil {
+	if err := modernAdminPageWithReset.Execute(w, data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
+}
+
+func (a *app) adminResetPassword(w http.ResponseWriter, r *http.Request) {
+	admin := a.requireAdmin(w, r)
+	if admin == "" {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	target := strings.TrimSpace(r.FormValue("username"))
+	newPassword := r.FormValue("new_password")
+	if len(newPassword) < 8 {
+		http.Error(w, "new password must be at least 8 characters", http.StatusBadRequest)
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "password processing failed", http.StatusInternalServerError)
+		return
+	}
+	a.mu.Lock()
+	account, ok := a.data.Users[target]
+	if !ok {
+		a.mu.Unlock()
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+	account.PasswordHash = string(hash)
+	a.data.Users[target] = account
+	for token, sessionUser := range a.sessions {
+		if sessionUser == target {
+			delete(a.sessions, token)
+		}
+	}
+	err = a.saveLocked()
+	a.mu.Unlock()
+	if err != nil {
+		http.Error(w, "password save failed", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
 func (a *app) home(w http.ResponseWriter, r *http.Request) {
